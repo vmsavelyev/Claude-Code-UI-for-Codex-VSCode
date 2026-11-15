@@ -801,6 +801,7 @@ async function activate(context) {
   const accountViewProvider = new AccountViewProvider(account);
   const historyViews = [];
   const resolvedRestoredTabs = new Set();
+  const resolvingRestoredTabs = new Map();
   const tabBridgeKey = 'slava.codex.tabThreads.v1';
   const savedTabThreads = context.workspaceState.get(tabBridgeKey, {});
   const tabThreads = process[Symbol.for(tabBridgeKey)] = new Map(Object.entries(savedTabThreads));
@@ -864,12 +865,35 @@ async function activate(context) {
     const threadId = parseCodexThreadId(uri) || (uri && tabThreads.get(uri.toString()));
     diagnostics.setCurrentThread(threadId);
     history.setOpenThread(threadId);
-    if (!uri || uri.scheme !== CODEX_URI_SCHEME || resolvedRestoredTabs.has(uri.toString())) return;
-    resolvedRestoredTabs.add(uri.toString());
-    try {
-      await activateCodexEditor(uri, { preserveFocus: true, preview: tab?.isPreview });
-    } catch (error) {
-      output.appendLine(`${new Date().toISOString()} restored-tab-activation error=${error.name || 'Error'}`);
+    if (!uri || uri.scheme !== CODEX_URI_SCHEME || uri.authority !== CODEX_URI_AUTHORITY) return;
+    const key = uri.toString();
+    if (resolvingRestoredTabs.has(key)) return resolvingRestoredTabs.get(key);
+    if (resolvedRestoredTabs.has(key)) return;
+    resolvedRestoredTabs.add(key);
+    const pending = activateCodexEditor(uri, { preserveFocus: true, preview: tab?.isPreview })
+      .catch((error) => {
+        resolvedRestoredTabs.delete(key);
+        output.appendLine(`${new Date().toISOString()} restored-tab-activation error=${error.name || 'Error'}`);
+      })
+      .finally(() => resolvingRestoredTabs.delete(key));
+    resolvingRestoredTabs.set(key, pending);
+    return pending;
+  };
+
+  const resolveRestoredTabs = async () => {
+    const tabs = vscode.window.tabGroups.all.flatMap((group) => group.tabs.map((tab) => ({ group, tab })));
+    for (const { group, tab } of tabs) {
+      const uri = uriFromTab(tab);
+      const key = uri?.toString();
+      if (!uri || uri.scheme !== CODEX_URI_SCHEME || uri.authority !== CODEX_URI_AUTHORITY ||
+          resolvedRestoredTabs.has(key) || !vscode.window.tabGroups.all.includes(group) || !group.tabs.includes(tab)) continue;
+      resolvedRestoredTabs.add(key);
+      try {
+        await activateCodexEditor(uri, { viewColumn: group.viewColumn, preserveFocus: true, preview: tab.isPreview });
+      } catch (error) {
+        resolvedRestoredTabs.delete(key);
+        output.appendLine(`${new Date().toISOString()} restored-tab-activation error=${error.name || 'Error'}`);
+      }
     }
   };
 
@@ -997,6 +1021,7 @@ async function activate(context) {
     let changed = false;
     for (const tab of event.closed) {
       const uri = uriFromTab(tab);
+      if (uri) resolvedRestoredTabs.delete(uri.toString());
       if (uri && tabThreads.delete(uri.toString())) changed = true;
     }
     if (changed) context.workspaceState.update(tabBridgeKey, Object.fromEntries(tabThreads));
@@ -1017,7 +1042,7 @@ async function activate(context) {
   } });
 
   vscode.commands.executeCommand('setContext', 'codexHistory.searchActive', false);
-  resolveActiveRestoredTab();
+  resolveActiveRestoredTab().then(resolveRestoredTabs);
   history.refresh({ quiet: true });
   account.refresh(true);
 }

@@ -33,7 +33,7 @@
 ## Установка
 
 ```bash
-code --install-extension /путь/codex-history-ui-1.2.vsix --force
+code --install-extension /путь/codex-history-ui-1.3.vsix --force
 ```
 
 После установки выполните `Developer: Reload Window`. Патч загрузки штатного редактора применяется отдельно через `patch-openai-extension.js`: скрипт проверяет точную версию и контрольную сумму, создаёт резервную копию в `~/.codex-ui-backups/` и останавливается без изменений для несовместимой сборки.
