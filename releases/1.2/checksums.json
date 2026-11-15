@@ -1,13 +1,13 @@
 {
-  "codex-history-ui-1.1.vsix": "f66f8760fe24b8519cd02d87f838cf9e2422176f068b1a0056e904efffcf36eb",
+  "codex-history-ui-1.2.vsix": "b196f8c015b5289bb094974f1ea7b54a03a357b2768eef0fb8305af21ad749fc",
   "compatibility/openai.chatgpt-26.1106.51428/original-extension.js": "30fb21db73fff04c505dc1463dc562205c2321fea52a615d8c2658fd356d157e",
   "compatibility/openai.chatgpt-26.1106.51428/original-package.json": "3dc378026b99f3bbb25846d34dae991a1b0c5586112cc0801292f682b9f1c022",
   "compatibility/openai.chatgpt-26.1106.51428/patched-extension.js": "2e4eb294b1a5aff132184048afd1cfb40e2a3307cd4b0388b4523b80bb3da11a",
   "compatibility/openai.chatgpt-26.1106.51428/patched-package.json": "5025f59e9a1501185b9e9702d118bb10d7f75b9868f2f0946e415925ff626436",
-  "release.json": "6edcff85b3661d63407fe204d04a74a325e30687bf05ab4fa28eebe4b1e395fc",
-  "src/README.md": "cc3370340798b82176274dc0ea419647a96c3fbd74356193eb45c286e7ca0137",
+  "release.json": "13df62e642bed1f8dff9af9d179e8862090403719abb66f8a801b59b21bbf5d9",
+  "src/README.md": "6d55afb919a6990b89c21019668119adfd4bf0e6b05a70c78221250a6408ad4c",
   "src/account-view.js": "c183a483525359cf35222e8511278ff7e5c97faa43b3229a430ca298eff49ce7",
-  "src/extension.js": "96f031e15689f7a6dc8ac9d43c00f6a30068f9c16340687d9e2d0fe660c10338",
-  "src/package.json": "daa5f375902a36e62dcdb2c211398e31778d71147508cc8079f249495b7791fb",
+  "src/extension.js": "078561c738988a1afeecffa4576ee38a8222547d6d0d342fe276fdc9b7025492",
+  "src/package.json": "ff80f6083f0800db4f91d13cf21dac7ad159d19b9e4f533c487a324bf3e565fa",
   "src/patch-openai-extension.js": "0043a1835375463f7a522fb005fc80b88dd8fb5f3f020f143d67bf3b06ceaf15"
 }

@@ -8,7 +8,7 @@ const { randomUUID } = require('crypto');
 const { EventEmitter } = require('events');
 const { AccountViewProvider } = require('./account-view');
 
-const EXTENSION_VERSION = '1.1.0';
+const EXTENSION_VERSION = '1.2.0';
 const OPENAI_EXTENSION_ID = 'openai.chatgpt';
 const CUSTOM_EDITOR_VIEW_TYPE = 'chatgpt.conversationEditor';
 const CODEX_URI_SCHEME = 'openai-codex';
@@ -49,6 +49,10 @@ function formatDate(unixSeconds) {
 
 function threadTitle(thread) {
   return cleanLabel(thread?.name || thread?.preview);
+}
+
+function normalizeSearchText(value) {
+  return value.normalize('NFC').replace(/\s+/g, ' ').trim().toLowerCase();
 }
 
 function activityKind(status) {
@@ -354,6 +358,7 @@ class HistoryProvider {
     this.searchQuery = '';
     this.searchResults = [];
     this.epoch = 0;
+    this.searchEpoch = 0;
     this.refreshTimer = null;
     this.visible = false;
   }
@@ -444,6 +449,7 @@ class HistoryProvider {
 
   async refresh({ quiet = false, stateDbOnly = false } = {}) {
     const epoch = ++this.epoch;
+    if (this.searchQuery) ++this.searchEpoch;
     if (!quiet) {
       this.loading = true;
       this.error = null;
@@ -462,7 +468,7 @@ class HistoryProvider {
       this.loading = false;
       this.error = null;
       for (const thread of activeThreads) this.diagnostics.observe({ ...thread, status: this.threadStatus(thread) }, stateDbOnly ? 'reconcile' : 'refresh');
-      if (this.searchQuery) await this.runSearch(this.searchQuery, { preserveEpoch: epoch });
+      if (this.searchQuery) await this.runSearch(this.searchQuery, { useLoadedThreads: true });
       this.emitter.fire();
     } catch (error) {
       if (epoch !== this.epoch) return;
@@ -495,23 +501,38 @@ class HistoryProvider {
   async runSearch(query, options = {}) {
     const normalized = query.trim();
     if (!normalized) return this.clearSearch();
-    const epoch = options.preserveEpoch ?? ++this.epoch;
+    const epoch = ++this.searchEpoch;
+    if (this.searchQuery !== normalized) this.searchResults = [];
     this.searchQuery = normalized;
     vscode.commands.executeCommand('setContext', 'codexHistory.searchActive', true);
     this.loading = true;
     this.emitter.fire();
     try {
-      const [active, archived] = await Promise.all([this.searchAll(normalized, false), this.searchAll(normalized, true)]);
-      if (epoch !== this.epoch) return;
-      this.searchResults = [
-        ...active.map((thread) => ({ ...thread, __archived: false })),
-        ...archived.map((thread) => ({ ...thread, __archived: true })),
-      ].filter((thread) => this.matchesScope(thread));
+      const [active, archived, activeThreads, archivedThreads] = await Promise.all([
+        this.searchAll(normalized, false),
+        this.searchAll(normalized, true),
+        options.useLoadedThreads ? this.activeThreads : this.listAll(false, false),
+        options.useLoadedThreads ? this.archivedThreads : this.listAll(true, false),
+      ]);
+      if (epoch !== this.searchEpoch) return;
+      const needle = normalizeSearchText(normalized);
+      const results = new Map();
+      for (const [threads, isArchived, matchTitle] of [
+        [activeThreads, false, true], [archivedThreads, true, true],
+        [active, false, false], [archived, true, false],
+      ]) {
+        for (const thread of threads) {
+          if ((!matchTitle || normalizeSearchText(threadTitle(thread)).includes(needle)) && this.matchesScope(thread) && !results.has(thread.id)) {
+            results.set(thread.id, { ...thread, __archived: isArchived });
+          }
+        }
+      }
+      this.searchResults = [...results.values()];
       this.loading = false;
       this.error = null;
       this.emitter.fire();
     } catch (error) {
-      if (epoch !== this.epoch) return;
+      if (epoch !== this.searchEpoch) return;
       this.loading = false;
       this.error = error;
       this.emitter.fire();
@@ -520,6 +541,7 @@ class HistoryProvider {
   }
 
   clearSearch() {
+    ++this.searchEpoch;
     this.searchQuery = '';
     this.searchResults = [];
     this.loading = false;
