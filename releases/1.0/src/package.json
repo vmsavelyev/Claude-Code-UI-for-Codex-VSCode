@@ -1,0 +1,277 @@
+{
+  "name": "codex-history-ui",
+  "displayName": "Codex History UI",
+  "description": "История, группы, архив, аккаунт и диагностика Codex для VS Code.",
+  "version": "1.0.0",
+  "publisher": "slava-local",
+  "private": true,
+  "engines": {
+    "vscode": "^1.96.2"
+  },
+  "categories": [
+    "Other"
+  ],
+  "activationEvents": [
+    "onStartupFinished",
+    "onCommand:codexHistory.refresh",
+    "onView:codexHistory.historyPrimary",
+    "onView:codexHistory.historySecondary",
+    "onView:codexHistory.accountPrimary",
+    "onView:codexHistory.accountSecondary"
+  ],
+  "main": "./extension.js",
+  "extensionDependencies": [
+    "openai.chatgpt"
+  ],
+  "contributes": {
+    "commands": [
+      {
+        "command": "codexHistory.newChat",
+        "title": "Новый чат",
+        "category": "Codex",
+        "icon": "$(add)"
+      },
+      {
+        "command": "codexHistory.refresh",
+        "title": "Обновить историю",
+        "category": "Codex",
+        "icon": "$(refresh)"
+      },
+      {
+        "command": "codexHistory.search",
+        "title": "Поиск по истории",
+        "category": "Codex",
+        "icon": "$(search)"
+      },
+      {
+        "command": "codexHistory.clearSearch",
+        "title": "Очистить поиск",
+        "category": "Codex",
+        "icon": "$(clear-all)"
+      },
+      {
+        "command": "codexHistory.toggleScope",
+        "title": "Текущий проект / Все проекты",
+        "category": "Codex",
+        "icon": "$(folder-library)"
+      },
+      {
+        "command": "codexHistory.createGroup",
+        "title": "Создать группу",
+        "category": "Codex",
+        "icon": "$(new-folder)"
+      },
+      {
+        "command": "codexHistory.renameGroup",
+        "title": "Переименовать группу",
+        "category": "Codex"
+      },
+      {
+        "command": "codexHistory.deleteGroup",
+        "title": "Удалить группу",
+        "category": "Codex"
+      },
+      {
+        "command": "codexHistory.renameChat",
+        "title": "Переименовать чат",
+        "category": "Codex",
+        "icon": "$(edit)"
+      },
+      {
+        "command": "codexHistory.moveChats",
+        "title": "Переместить в группу",
+        "category": "Codex"
+      },
+      {
+        "command": "codexHistory.archiveChats",
+        "title": "Архивировать",
+        "category": "Codex"
+      },
+      {
+        "command": "codexHistory.restoreChats",
+        "title": "Восстановить из архива",
+        "category": "Codex"
+      },
+      {
+        "command": "codexHistory.openChat",
+        "title": "Открыть чат",
+        "category": "Codex"
+      },
+      {
+        "command": "codexHistory.refreshAccount",
+        "title": "Обновить аккаунт и лимиты",
+        "category": "Codex",
+        "icon": "$(refresh)"
+      },
+      {
+        "command": "codexHistory.showRequestStatus",
+        "title": "Состояние текущего запроса",
+        "category": "Codex"
+      }
+    ],
+    "configuration": {
+      "title": "Codex History UI",
+      "properties": {
+        "codexHistory.enabled": {
+          "type": "boolean",
+          "default": true,
+          "scope": "window",
+          "description": "Показывать адаптированную историю Codex. При отключении остаётся штатное представление Codex."
+        },
+        "codexHistory.scope": {
+          "type": "string",
+          "enum": [
+            "currentProject",
+            "allProjects"
+          ],
+          "enumDescriptions": [
+            "Показывать чаты каталогов текущего окна VS Code.",
+            "Показывать чаты всех проектов."
+          ],
+          "default": "currentProject",
+          "scope": "window",
+          "description": "Область истории Codex."
+        },
+        "codexHistory.activityRefreshIntervalSeconds": {
+          "type": "number",
+          "minimum": 5,
+          "maximum": 60,
+          "default": 5,
+          "scope": "window",
+          "description": "Интервал сверки активности чатов без вызова модели."
+        }
+      }
+    },
+    "views": {
+      "codexViewContainer": [
+        {
+          "id": "codexHistory.accountPrimary",
+          "name": "Аккаунт и лимиты",
+          "when": "config.codexHistory.enabled && chatgpt.doesNotSupportSecondarySidebar",
+          "type": "webview"
+        },
+        {
+          "id": "codexHistory.historyPrimary",
+          "name": "История",
+          "when": "config.codexHistory.enabled && chatgpt.doesNotSupportSecondarySidebar"
+        }
+      ],
+      "codexSecondaryViewContainer": [
+        {
+          "id": "codexHistory.accountSecondary",
+          "name": "Аккаунт и лимиты",
+          "when": "config.codexHistory.enabled && !chatgpt.doesNotSupportSecondarySidebar",
+          "type": "webview"
+        },
+        {
+          "id": "codexHistory.historySecondary",
+          "name": "История",
+          "when": "config.codexHistory.enabled && !chatgpt.doesNotSupportSecondarySidebar"
+        }
+      ]
+    },
+    "menus": {
+      "view/title": [
+        {
+          "command": "codexHistory.newChat",
+          "when": "view == codexHistory.historyPrimary || view == codexHistory.historySecondary",
+          "group": "navigation@1"
+        },
+        {
+          "command": "codexHistory.search",
+          "when": "(view == codexHistory.historyPrimary || view == codexHistory.historySecondary) && !codexHistory.searchActive",
+          "group": "navigation@2"
+        },
+        {
+          "command": "codexHistory.clearSearch",
+          "when": "(view == codexHistory.historyPrimary || view == codexHistory.historySecondary) && codexHistory.searchActive",
+          "group": "navigation@2"
+        },
+        {
+          "command": "codexHistory.refresh",
+          "when": "view == codexHistory.historyPrimary || view == codexHistory.historySecondary",
+          "group": "navigation@3"
+        },
+        {
+          "command": "codexHistory.toggleScope",
+          "when": "view == codexHistory.historyPrimary || view == codexHistory.historySecondary",
+          "group": "navigation@4"
+        },
+        {
+          "command": "codexHistory.createGroup",
+          "when": "view == codexHistory.historyPrimary || view == codexHistory.historySecondary",
+          "group": "navigation@5"
+        },
+        {
+          "command": "codexHistory.refreshAccount",
+          "when": "view == codexHistory.accountPrimary || view == codexHistory.accountSecondary",
+          "group": "navigation@1"
+        }
+      ],
+      "view/item/context": [
+        {
+          "command": "codexHistory.renameChat",
+          "when": "viewItem == codexHistory.chat || viewItem == codexHistory.archivedChat",
+          "group": "inline@1"
+        },
+        {
+          "command": "codexHistory.moveChats",
+          "when": "viewItem == codexHistory.chat",
+          "group": "navigation@2"
+        },
+        {
+          "command": "codexHistory.archiveChats",
+          "when": "viewItem == codexHistory.chat",
+          "group": "navigation@3"
+        },
+        {
+          "command": "codexHistory.restoreChats",
+          "when": "viewItem == codexHistory.archivedChat",
+          "group": "navigation@3"
+        },
+        {
+          "command": "codexHistory.renameGroup",
+          "when": "viewItem == codexHistory.group",
+          "group": "navigation@1"
+        },
+        {
+          "command": "codexHistory.deleteGroup",
+          "when": "viewItem == codexHistory.group",
+          "group": "navigation@2"
+        }
+      ]
+    },
+    "colors": [
+      {
+        "id": "codexHistory.activeForeground",
+        "description": "Индикатор работающего чата Codex.",
+        "defaults": {
+          "dark": "#4EC975",
+          "light": "#16833A",
+          "highContrast": "#4EC975",
+          "highContrastLight": "#16833A"
+        }
+      },
+      {
+        "id": "codexHistory.actionForeground",
+        "description": "Индикатор чата Codex, ожидающего действия пользователя.",
+        "defaults": {
+          "dark": "#5AA7FF",
+          "light": "#0066CC",
+          "highContrast": "#5AA7FF",
+          "highContrastLight": "#0066CC"
+        }
+      },
+      {
+        "id": "codexHistory.openForeground",
+        "description": "Кружок чата, открытого в активной вкладке редактора.",
+        "defaults": {
+          "dark": "#FFFFFF",
+          "light": "#424242",
+          "highContrast": "#FFFFFF",
+          "highContrastLight": "#292929"
+        }
+      }
+    ]
+  }
+}

@@ -1,0 +1,13 @@
+{
+  "codex-history-ui-1.0.vsix": "28af262026a113732fb3a1c1d394cb1f55d3e4c6da50fa9818917a623d9b83bc",
+  "compatibility/openai.chatgpt-26.1106.51428/original-extension.js": "30fb21db73fff04c505dc1463dc562205c2321fea52a615d8c2658fd356d157e",
+  "compatibility/openai.chatgpt-26.1106.51428/original-package.json": "3dc378026b99f3bbb25846d34dae991a1b0c5586112cc0801292f682b9f1c022",
+  "compatibility/openai.chatgpt-26.1106.51428/patched-extension.js": "2e4eb294b1a5aff132184048afd1cfb40e2a3307cd4b0388b4523b80bb3da11a",
+  "compatibility/openai.chatgpt-26.1106.51428/patched-package.json": "5025f59e9a1501185b9e9702d118bb10d7f75b9868f2f0946e415925ff626436",
+  "release.json": "3bce440718e4199e6b73d262950bd7803055d262f282ebac074219c22378fa13",
+  "src/README.md": "b52ff31a0d07afd5d01897f72fe4d0ecbdfa3ac8f8b161aa2efa433aaed5d4c4",
+  "src/account-view.js": "c183a483525359cf35222e8511278ff7e5c97faa43b3229a430ca298eff49ce7",
+  "src/extension.js": "d533814df9725d05ecd9963f8f3d79e3a7b31ecc11650725bf84c661227a18a2",
+  "src/package.json": "3fc4314344c65065257ecb62ff2ff7cc9de67e9b39983df6efec61f397dd1cd2",
+  "src/patch-openai-extension.js": "553883f52f27d1fc2f11576c5dcae8afd34fff7db84bdd945729da4e66e3fdc4"
+}

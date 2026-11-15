@@ -1,0 +1,13 @@
+{
+  "schemaVersion": 1,
+  "uiId": "slava-local.codex-history-ui",
+  "uiVersion": "1.0.0",
+  "nativeId": "openai.chatgpt",
+  "nativeVersion": "26.1111.21308",
+  "vsix": "codex-history-ui-1.0.vsix",
+  "nativeSourceHashes": [
+    "aa93a1b5aaa79746f3b583133355c659a0f059ff98d1956adf9da0e4afbcf817",
+    "1a22dcb75c6efdfa7fcd44745902c405e9902b25f210cf0893c03a8eb9a3d767"
+  ],
+  "createdOn": "2026-11-12"
+}
