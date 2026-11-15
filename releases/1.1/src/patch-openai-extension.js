@@ -8,8 +8,10 @@ const crypto = require('crypto');
 const SUPPORTED_VERSION = '26.1111.21308';
 const SUPPORTED_EXTENSION_SHA256 = 'aa93a1b5aaa79746f3b583133355c659a0f059ff98d1956adf9da0e4afbcf817';
 const SUPPORTED_UI_PATCH_SHA256 = '1a22dcb75c6efdfa7fcd44745902c405e9902b25f210cf0893c03a8eb9a3d767';
+const SUPPORTED_TABS_PATCH_SHA256 = 'f17350fcd8aa66de03d6873a8bd798b856bb0f955f2f54a6bc1bb0a05983ded3';
 const PATCH_MARKER = 'codex_ui_patch_v1';
 const ACTIVITY_MARKER = 'codex_ui_activity_v1';
+const TABS_MARKER = 'codex_ui_tabs_v1';
 
 function sha256(content) {
   return crypto.createHash('sha256').update(content).digest('hex');
@@ -40,8 +42,49 @@ function transformActivityBridge(source) {
   return { source: patched, alreadyPatched: false };
 }
 
+function transformTabs(source) {
+  if (source.includes(TABS_MARKER)) return { source, alreadyPatched: true };
+  let patched = replaceOnce(source,
+    /async resolveCustomEditor\(e,r,n\)\{let o=gL\(e\.uri\);/,
+    `async resolveCustomEditor(e,r,n){/* ${TABS_MARKER} */await ze.extensions.getExtension("slava-local.codex-history-ui")?.activate();let o=gL(e.uri);`,
+    'активация связи вкладок');
+  patched = replaceOnce(patched,
+    /routeIncomingMessage\(e,r=e\)\{\/\* codex_ui_activity_v1 \*\//,
+    'routeIncomingMessage(e,r=e){/* codex_ui_activity_v1 */if(e?.method==="thread/name/updated"||e?.method==="thread/started")process.emit("slava.codex.threadMetadata.v1");',
+    'обновление названий из основного процесса');
+  patched = replaceOnce(patched,
+    /let\{conversationId:i\}=o;r\.title=h4e\(null\)/,
+    'let{conversationId:i}=o;let tabUri=e.uri.toString(),tabKey="slava.codex.tabThreads.v1",titleKey="slava.codex.threadTitle.v1";i=i??process[Symbol.for(tabKey)]?.get(tabUri)??null;e.uri.path==="/extension/panel/new"&&(o.path=i?`/local/${i}`:"/extension/panel/new");r.title=h4e(process[Symbol.for(titleKey)]?.get(i))',
+    'восстановление связи вкладки');
+  patched = replaceOnce(patched,
+    /r\.title=h4e\(s\.preview\)/,
+    'r.title=h4e(process[Symbol.for(titleKey)]?.get(i)??s.preview)',
+    'приоритет актуального названия');
+  patched = replaceOnce(patched,
+    /r\.title=h4e\(a\)/,
+    'r.title=h4e(process[Symbol.for(titleKey)]?.get(i)??a)',
+    'приоритет названия перед предпросмотром');
+  patched = replaceOnce(patched,
+    /this\.editorPanels\.set\(r,\{ready:!1,pendingMessages:\[\],initialRoute:i==null\|\|o\.path\.startsWith\("\/local\/"\)\?o\.path:`\/local\/\$\{i\}`\}\),i!=null&&this\.registerOnDidDisposeForWebviewPanel\(r,i\)/,
+    'this.editorPanels.set(r,{ready:!1,pendingMessages:[],initialRoute:i==null||o.path.startsWith("/local/")?o.path:`/local/${i}`,codexUiUri:tabUri,codexUiThreadId:i});let updateTitle=({threadId:s,title:a})=>{let l=this.editorPanels.get(r);l?.codexUiThreadId===s&&this.isPanelAlive(r)&&(r.title=h4e(a))};process.on(titleKey,updateTitle);r.onDidDispose(()=>process.off(titleKey,updateTitle));this.registerOnDidDisposeForWebviewPanel(r,i)',
+    'обновление названия вкладки');
+  patched = replaceOnce(patched,
+    /case"mcp-request":\{if\(G4\(r\.request\)\)/,
+    'case"mcp-request":{if(r.request.method==="thread/start"){this.codexUiStarts??=new Set;this.codexUiStarts.add(String(r.request.id))}if(G4(r.request))',
+    'отслеживание создания чата');
+  patched = replaceOnce(patched,
+    /case"thread-prewarm-start":\{let\{id:n,params:o\}=r\.request;/,
+    'case"thread-prewarm-start":{let{id:n,params:o}=r.request;this.codexUiStarts??=new Set;this.codexUiStarts.add(String(n));',
+    'отслеживание предварительного создания чата');
+  patched = replaceOnce(patched,
+    /this\.pendingMcpRequests\.delete\(r\),this\.chunkedMessageSender\.send\(n,\{type:"mcp-response"/,
+    'this.pendingMcpRequests.delete(r),this.codexUiStarts?.delete(r)&&(()=>{let s=e.result?.thread?.id,a=this.findPanelByWebview(n),l=this.editorPanels.get(a);if(typeof s!=="string"||!l?.codexUiUri||l.codexUiThreadId)return;l.codexUiThreadId=s;let c="slava.codex.tabThreads.v1";process[Symbol.for(c)]?.set(l.codexUiUri,s),process.emit(c,{uri:l.codexUiUri,threadId:s});let u=process[Symbol.for("slava.codex.threadTitle.v1")]?.get(s);u&&this.isPanelAlive(a)&&(a.title=h4e(u))})(),this.chunkedMessageSender.send(n,{type:"mcp-response"',
+    'связь созданного чата с вкладкой');
+  return { source: patched, alreadyPatched: false };
+}
+
 function transformExtension(source) {
-  if (source.includes(PATCH_MARKER)) return transformActivityBridge(source);
+  if (source.includes(PATCH_MARKER)) return transformTabs(transformActivityBridge(source).source);
 
   let patched = source;
   patched = replaceOnce(
@@ -79,7 +122,7 @@ function transformExtension(source) {
     'очистка таймера при закрытии webview',
   );
 
-  return transformActivityBridge(patched);
+  return transformTabs(transformActivityBridge(patched).source);
 }
 
 function createBackup(extensionDir, extensionSource, packageSource) {
@@ -106,7 +149,7 @@ function applyPatch(extensionDir, options = {}) {
   if (manifest.version !== SUPPORTED_VERSION) throw new Error(`Версия ${manifest.version} не поддерживается. Ожидалась ${SUPPORTED_VERSION}; файлы не изменены.`);
   const extensionSource = fs.readFileSync(extensionPath);
   const sourceText = extensionSource.toString('utf8');
-  if (![SUPPORTED_EXTENSION_SHA256, SUPPORTED_UI_PATCH_SHA256].includes(sha256(extensionSource))) {
+  if (![SUPPORTED_EXTENSION_SHA256, SUPPORTED_UI_PATCH_SHA256, SUPPORTED_TABS_PATCH_SHA256].includes(sha256(extensionSource))) {
     throw new Error('Контрольная сумма extension.js не совпала с поддерживаемой сборкой; файлы не изменены.');
   }
   const transformed = transformExtension(sourceText);

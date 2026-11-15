@@ -2,7 +2,7 @@
   "name": "codex-history-ui",
   "displayName": "Codex History UI",
   "description": "История, группы, архив, аккаунт и диагностика Codex для VS Code.",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "publisher": "slava-local",
   "private": true,
   "engines": {

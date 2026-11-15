@@ -4,10 +4,11 @@ const vscode = require('vscode');
 const fs = require('fs');
 const path = require('path');
 const { spawn } = require('child_process');
+const { randomUUID } = require('crypto');
 const { EventEmitter } = require('events');
 const { AccountViewProvider } = require('./account-view');
 
-const EXTENSION_VERSION = '1.0.0';
+const EXTENSION_VERSION = '1.1.0';
 const OPENAI_EXTENSION_ID = 'openai.chatgpt';
 const CUSTOM_EDITOR_VIEW_TYPE = 'chatgpt.conversationEditor';
 const CODEX_URI_SCHEME = 'openai-codex';
@@ -763,10 +764,33 @@ async function activate(context) {
   const client = new CodexRpcClient(binary, output);
   const diagnostics = new RequestDiagnostics(client, output);
   const history = new HistoryProvider(client, context, diagnostics);
+  const titleEvent = 'slava.codex.threadTitle.v1';
+  const titles = process[Symbol.for(titleEvent)] = new Map();
+  context.subscriptions.push(history.onDidChangeTreeData(() => {
+    for (const thread of [...history.activeThreads, ...history.archivedThreads]) {
+      const title = thread.name || thread.preview;
+      if (thread.id && title && titles.get(thread.id) !== title) {
+        titles.set(thread.id, title);
+        process.emit(titleEvent, { threadId: thread.id, title });
+      }
+    }
+  }));
   const account = new AccountProvider(client);
   const accountViewProvider = new AccountViewProvider(account);
   const historyViews = [];
   const resolvedRestoredTabs = new Set();
+  const tabBridgeKey = 'slava.codex.tabThreads.v1';
+  const savedTabThreads = context.workspaceState.get(tabBridgeKey, {});
+  const tabThreads = process[Symbol.for(tabBridgeKey)] = new Map(Object.entries(savedTabThreads));
+  const persistTabThread = ({ uri, threadId }) => {
+    if (typeof uri !== 'string' || typeof threadId !== 'string') return;
+    tabThreads.set(uri, threadId);
+    context.workspaceState.update(tabBridgeKey, Object.fromEntries(tabThreads));
+    resolveActiveRestoredTab();
+    scheduleRefresh();
+  };
+  process.on(tabBridgeKey, persistTabThread);
+  context.subscriptions.push({ dispose: () => process.off(tabBridgeKey, persistTabThread) });
   let refreshDebounce = null;
 
   for (const id of ['codexHistory.historyPrimary', 'codexHistory.historySecondary']) {
@@ -783,6 +807,9 @@ async function activate(context) {
     if (refreshDebounce) clearTimeout(refreshDebounce);
     refreshDebounce = setTimeout(() => history.refresh({ quiet: true, stateDbOnly: true }), 250);
   };
+  const metadataEvent = 'slava.codex.threadMetadata.v1';
+  process.on(metadataEvent, scheduleRefresh);
+  context.subscriptions.push({ dispose: () => process.off(metadataEvent, scheduleRefresh) });
 
   const nativeActivityEvent = 'slava.codex.threadStatus.v1';
   const onNativeActivity = ({ threadId, status }) => history.updateRuntimeStatus(threadId, status, 'editor-event');
@@ -812,7 +839,7 @@ async function activate(context) {
   const resolveActiveRestoredTab = async () => {
     const tab = vscode.window.tabGroups.activeTabGroup.activeTab;
     const uri = uriFromTab(tab);
-    const threadId = parseCodexThreadId(uri);
+    const threadId = parseCodexThreadId(uri) || (uri && tabThreads.get(uri.toString()));
     diagnostics.setCurrentThread(threadId);
     history.setOpenThread(threadId);
     if (!uri || uri.scheme !== CODEX_URI_SCHEME || resolvedRestoredTabs.has(uri.toString())) return;
@@ -826,7 +853,7 @@ async function activate(context) {
 
   const register = (command, handler) => context.subscriptions.push(vscode.commands.registerCommand(command, handler));
   register('codexHistory.newChat', async () => {
-    const uri = codexUri('/extension/panel/new');
+    const uri = codexUri('/extension/panel/new').with({ query: `codexUiTab=${randomUUID()}` });
     resolvedRestoredTabs.add(uri.toString());
     await activateCodexEditor(uri, { preview: false });
   });
@@ -944,6 +971,14 @@ async function activate(context) {
   register('codexHistory.showRequestStatus', () => diagnostics.showStatus());
 
   context.subscriptions.push(vscode.window.tabGroups.onDidChangeTabs(resolveActiveRestoredTab));
+  context.subscriptions.push(vscode.window.tabGroups.onDidChangeTabs((event) => {
+    let changed = false;
+    for (const tab of event.closed) {
+      const uri = uriFromTab(tab);
+      if (uri && tabThreads.delete(uri.toString())) changed = true;
+    }
+    if (changed) context.workspaceState.update(tabBridgeKey, Object.fromEntries(tabThreads));
+  }));
   context.subscriptions.push(vscode.window.tabGroups.onDidChangeTabGroups(resolveActiveRestoredTab));
   context.subscriptions.push(vscode.workspace.onDidChangeConfiguration((event) => {
     if (event.affectsConfiguration('codexHistory.scope') || event.affectsConfiguration('codexHistory.enabled')) history.refresh({ quiet: true });
@@ -960,7 +995,7 @@ async function activate(context) {
   } });
 
   vscode.commands.executeCommand('setContext', 'codexHistory.searchActive', false);
-  await resolveActiveRestoredTab();
+  resolveActiveRestoredTab();
   history.refresh({ quiet: true });
   account.refresh(true);
 }
